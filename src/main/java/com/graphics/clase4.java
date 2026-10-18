@@ -12,44 +12,67 @@ import static org.lwjgl.opengl.GL33.*; // Permite cambiar viewport, recorte y bu
 public class clase4 extends clase3 {
 
     // ==================== 1. ESTADO DEL JUEGO ====================
+    protected boolean mostrarAyuda = false;
+    protected String ultimoSector = "";
+    protected float tiempoCartel = 4f;
+    private final InterfazCiudad interfaz = new InterfazCiudad();
+    protected final AutoTrafico[] trafico = crearTrafico();
     private boolean mostrarMapa = true; // Muestra el minimapa desde el inicio.
     protected int entregas = 0; // Cuenta las entregas completadas; también identifica el siguiente destino.
     protected float tiempo = 0; // Acumula los segundos de la partida hasta completar el recorrido.
     protected static final float[][] DESTINOS = { // Cada fila contiene X y Z de una parada sobre la calle.
-        {centro(10), centro(0)}, // Primera entrega: esquina noreste.
-        {centro(0), centro(0)}, // Segunda entrega: esquina noroeste.
-        {centro(0), centro(10)} // Tercera entrega: regreso al punto inicial.
+            {centro(10), centro(0)}, // Primera entrega: esquina noreste.
+            {centro(0), centro(0)}, // Segunda entrega: esquina noroeste.
+            {centro(0), centro(10)} // Tercera entrega: regreso al punto inicial.
     };
 
     protected float tiempoAnimacion = 0; // Sigue avanzando incluso al terminar las entregas.
 
     // ==================== 2. CONTROLES Y REINICIO ====================
 
-    /** Añade el interruptor del minimapa a los controles anteriores. */
+    /**
+     * Añade el interruptor del minimapa a los controles anteriores.
+     */
     @Override // Amplía las teclas definidas por clase3.
     protected void tecla(int key) {
         super.tecla(key); // Conserva salida, cámara, reinicio y luces.
+        if (key == GLFW_KEY_H) mostrarAyuda = !mostrarAyuda;
         if (key == GLFW_KEY_M) { // Comprueba si se pulsó la tecla del mapa.
             mostrarMapa = !mostrarMapa; // Alterna entre mostrar y ocultar la vista superior.
         }
     }
 
-    /** Reinicia el vehículo y el progreso de las entregas. */
+    /**
+     * Reinicia el vehículo y el progreso de las entregas.
+     */
     @Override // Amplía el reinicio definido en clase2.
     protected void reiniciar() {
         super.reiniciar(); // Restaura posición, velocidad y orientación del vehículo.
         entregas = 0; // Vuelve a seleccionar la primera parada.
         tiempoAnimacion = 0;
+        ultimoSector = "";
+        tiempoCartel = 4f;
+        for (AutoTrafico a : trafico) a.reiniciar();
         tiempo = 0; // Reinicia el cronómetro de la partida.
+
     }
 
     // ==================== 3. REGLAS DE LAS ENTREGAS ====================
 
-    /** Actualiza el vehículo y comprueba si llegó y frenó en el destino activo. */
+    /**
+     * Actualiza el vehículo y comprueba si llegó y frenó en el destino activo.
+     */
     @Override // Añade el objetivo del juego al movimiento heredado.
     protected void actualizar(float deltaTime) {
         tiempoAnimacion += deltaTime;
-        super.actualizar(deltaTime); // Procesa aceleración, giro, colisiones y título de la ventana.
+        tiempoCartel += deltaTime;
+        super.actualizar(deltaTime);
+        actualizarTrafico(deltaTime);
+        String sector = sectorActual();
+        if (!sector.equals(ultimoSector)) {
+            ultimoSector = sector;
+            tiempoCartel = 0f;
+        } // Procesa aceleración, giro, colisiones y título de la ventana.
         if (entregas >= DESTINOS.length) { // Comprueba si ya se completaron todas las paradas.
             return; // Conserva el tiempo final y evita leer fuera del arreglo.
         }
@@ -64,7 +87,9 @@ public class clase4 extends clase3 {
         }
     }
 
-    /** Compone el progreso que se añade al título de la ventana. */
+    /**
+     * Compone el progreso que se añade al título de la ventana.
+     */
     @Override // Amplía los indicadores de día/noche y faros de clase3.
     protected String estadoExtra() {
         String mensaje = super.estadoExtra(); // Recupera los indicadores de iluminación.
@@ -80,10 +105,14 @@ public class clase4 extends clase3 {
 
     // ==================== 4. ESCENA FINAL Y DESTINO ====================
 
-    /** Añade decoración y señal del destino a la escena iluminada. */
+    /**
+     * Añade decoración y señal del destino a la escena iluminada.
+     */
     @Override // Amplía el dibujo acumulado de las tres etapas anteriores.
     protected void escena() {
-        super.escena(); // Dibuja la ciudad, el auto y las farolas.
+        super.escena();
+        dibujarExtras();
+        dibujarTrafico(); // Dibuja la ciudad, el auto y las farolas.
         if (!vistaMapa) { // Los detalles pequeños solo son necesarios en la vista principal.
             decorarCiudad(); // Añade árboles, bancos, ventanas y señalización urbana.
         }
@@ -92,7 +121,9 @@ public class clase4 extends clase3 {
         }
     }
 
-    /** Marca la próxima parada con una plataforma y una baliza flotante. */
+    /**
+     * Marca la próxima parada con una plataforma y una baliza flotante.
+     */
     private void dibujarDestino() {
         float x = DESTINOS[entregas][0]; // Lee el X de la próxima entrega.
         float z = DESTINOS[entregas][1]; // Lee el Z de la próxima entrega.
@@ -107,7 +138,9 @@ public class clase4 extends clase3 {
 
     // ==================== 5. DECORACIÓN DE LAS MANZANAS ====================
 
-    /** Decide qué decoración corresponde a cada tipo de parcela. */
+    /**
+     * Decide qué decoración corresponde a cada tipo de parcela.
+     */
     private void decorarCiudad() {
         for (int fila = 0; fila < MAPA.length; fila++) { // Recorre las filas del mapa.
             for (int columna = 0; columna < MAPA[fila].length; columna++) { // Recorre las columnas de esa fila.
@@ -129,147 +162,28 @@ public class clase4 extends clase3 {
         }
     }
 
-    /** Construye cuatro árboles y un banco utilizando cajas. */
+    /**
+     * Construye cuatro árboles y un banco utilizando cajas.
+     */
     private void dibujarParque(float x, float z) {
-        int nroArboles = 4; // Cambia aquí la cantidad de árboles.
-
-        float anchoParque = 9;
-        float anchoCopa = 2;
-        float anchoTronco = 0.35f;
-        float largoBanco = 3;
-        float separacion = 0.15f;
-
-        float anchoArbol = Math.max(anchoCopa, anchoTronco);
-        float mitadArbol = anchoArbol / 2;
-
-        float espacio = anchoParque - separacion * 2;
-        float limite = espacio / 2 - mitadArbol;
-
-        int columnas = Math.max(0, (int) Math.floor(
-                (espacio + separacion) / (anchoArbol + separacion)
-        ));
-
-        // Con cuatro o menos, mantiene las esquinas alineadas.
-        if (nroArboles > 0 && nroArboles <= 4) {
-            columnas = Math.min(columnas, 2);
-            limite = Math.min(limite, 2.5f);
-        }
-
-        java.util.List<float[]> posiciones = new java.util.ArrayList<>();
-
-        // Calcula posiciones separadas entre sí.
-        for (int fila = 0; fila < columnas; fila++) {
-            for (int columna = 0; columna < columnas; columna++) {
-                float localX = columnas == 1 ? 0
-                        : -limite + columna * (2 * limite / (columnas - 1));
-
-                float localZ = columnas == 1 ? 0
-                        : -limite + fila * (2 * limite / (columnas - 1));
-
-                // Evita el banco.
-                boolean invadeBanco =
-                        Math.abs(localX) < largoBanco / 2 + mitadArbol + separacion
-                                && Math.abs(localZ) < 0.425f + mitadArbol + separacion;
-
-                // Evita las farolas, considerando también la bombilla.
-                boolean invadeFarola = false;
-                float distanciaMinima = mitadArbol + 0.35f + separacion;
-
-                for (float[] farola : LUCES) {
-                    float distanciaX = Math.abs(x + localX - farola[0]);
-                    float distanciaZ = Math.abs(z + localZ - farola[2]);
-
-                    if (distanciaX < distanciaMinima
-                            && distanciaZ < distanciaMinima) {
-                        invadeFarola = true;
-                        break;
-                    }
-                }
-
-                // Evita el semáforo ubicado en x + 4, z - 4.
-                boolean invadeSemaforo =
-                        Math.abs(localX - 4) < mitadArbol + 0.275f + separacion
-                                && Math.abs(localZ + 4) < mitadArbol + 0.30f + separacion;
-
-                if (!invadeBanco && !invadeFarola && !invadeSemaforo) {
-                    posiciones.add(new float[]{localX, localZ});
-                }
+        float[] posiciones = {-2.5f, 2.5f}; // Define desplazamientos respecto al centro de la parcela.
+        for (float desplazamientoX : posiciones) { // Selecciona el lado izquierdo o derecho del parque.
+            for (float desplazamientoZ : posiciones) { // Selecciona el lado delantero o trasero.
+                float arbolX = x + desplazamientoX; // Convierte el desplazamiento local en coordenada X mundial.
+                float arbolZ = z + desplazamientoZ; // Convierte el desplazamiento local en coordenada Z mundial.
+                caja(arbolX, 1.2f, arbolZ, 0.35f, 2, 0.35f, 0.38f, 0.22f, 0.12f); // Dibuja el tronco marrón.
+                caja(arbolX, 2.7f, arbolZ, 2, 2.3f, 2, 0.12f, 0.42f, 0.23f); // Dibuja la copa verde del árbol.
             }
         }
-
-        java.util.List<float[]> elegidas = new java.util.ArrayList<>();
-
-        if (nroArboles > 0 && nroArboles <= 4) {
-            float[][] esquinas = {
-                    {-limite, -limite},
-                    { limite, -limite},
-                    { limite,  limite},
-                    {-limite,  limite}
-            };
-
-            // Usa únicamente las esquinas libres, sin desplazar árboles.
-            for (float[] esquina : esquinas) {
-                if (elegidas.size() >= nroArboles) {
-                    break;
-                }
-
-                for (float[] posicion : posiciones) {
-                    boolean mismaPosicion =
-                            Math.abs(posicion[0] - esquina[0]) < 0.001f
-                                    && Math.abs(posicion[1] - esquina[1]) < 0.001f;
-
-                    if (mismaPosicion && !elegidas.contains(posicion)) {
-                        elegidas.add(posicion);
-                        break;
-                    }
-                }
-            }
-        } else {
-            // Con más de cuatro, reparte los árboles por el parque.
-            int cantidad = Math.min(
-                    Math.max(nroArboles, 0),
-                    posiciones.size()
-            );
-
-            for (int i = 0; i < cantidad; i++) {
-                int indice = i * posiciones.size() / cantidad;
-                elegidas.add(posiciones.get(indice));
-            }
-        }
-
-        // Dibuja los árboles.
-        for (float[] posicion : elegidas) {
-            float arbolX = x + posicion[0];
-            float arbolZ = z + posicion[1];
-
-            // Tronco.
-            caja(arbolX, 1.37f, arbolZ,
-                    anchoTronco, 2, anchoTronco,
-                    0.38f, 0.22f, 0.12f);
-
-            // Copa.
-            caja(arbolX, 2.7f, arbolZ,
-                    anchoCopa, 2.3f, anchoCopa,
-                    0.12f, 0.42f, 0.23f);
-        }
-
-        // Asiento del banco.
-        caja(x, 0.65f, z,
-                largoBanco, 0.25f, 0.8f,
-                0.55f, 0.30f, 0.13f);
-
-        // Soporte del banco.
-        caja(x, 0.4f, z,
-                Math.max(0.2f, largoBanco - 1), 0.6f, 0.35f,
-                0.22f, 0.24f, 0.24f);
-
-        // Respaldo del banco.
-        caja(x, 1, z + 0.35f,
-                largoBanco, 0.7f, 0.15f,
-                0.55f, 0.30f, 0.13f);
+        dibujarFuente(x, z + 1.4f);
+        caja(x, 0.65f, z, 3, 0.25f, 0.8f, 0.55f, 0.30f, 0.13f); // Dibuja el asiento de madera del banco.
+        caja(x, 0.4f, z, 2, 0.6f, 0.35f, 0.22f, 0.24f, 0.24f); // Dibuja el soporte oscuro del banco.
+        caja(x, 1, z + 0.35f, 3, 0.7f, 0.15f, 0.55f, 0.30f, 0.13f); // Dibuja el respaldo detrás del asiento.
     }
 
-    /** Distribuye ventanas por pisos en las cuatro paredes del edificio. */
+    /**
+     * Distribuye ventanas por pisos en las cuatro paredes del edificio.
+     */
     private void dibujarVentanas(float x, float z, float altura) {
         if (noche) { // Las ventanas simulan habitaciones encendidas en el ambiente nocturno.
             entero("uEmision", 1); // Permite ver el color de las ventanas sin depender de farolas.
@@ -285,18 +199,30 @@ public class clase4 extends clase3 {
         entero("uEmision", 0); // Restablece la iluminación normal de los demás elementos.
     }
 
-    /** Dibuja las franjas blancas sobre la calle contigua al norte de la manzana. */
+    /**
+     * Conecta con pasos de cebra las aceras enfrentadas en las esquinas de cada manzana.
+     */
     private void dibujarPasoPeatonal(float x, float z) {
-        for (int desplazamiento = -3; desplazamiento <= 3; desplazamiento++) { // Coloca siete franjas paralelas.
-            caja(x + desplazamiento, 0.045f, z - 8, 0.45f, 0.04f, 2, 0.85f, 0.87f, 0.83f); // Eleva la pintura un poco sobre el suelo.
+        // Cruce norte: une la esquina noreste con la esquina sureste de la manzana de enfrente.
+        // Las franjas atraviesan los 10 metros de calle, de borde de acera a borde de acera.
+        for (int i = 0; i < 8; i++) {
+            caja(x + 3.3f, 0.045f, z - 14.35f + i * 1.25f,
+                    2.7f, 0.04f, 0.68f, 0.85f, 0.87f, 0.83f);
+        }
+        // Cruce este: une las dos esquinas enfrentadas a ambos lados de la calle vertical.
+        for (int i = 0; i < 8; i++) {
+            caja(x + 5.6f + i * 1.25f, 0.045f, z + 3.3f,
+                    0.68f, 0.04f, 2.7f, 0.85f, 0.87f, 0.83f);
         }
     }
 
-    /** Construye un semáforo decorativo que alterna rojo, verde y amarillo cada 12 segundos. */
+    /**
+     * Construye un semáforo decorativo que alterna rojo, verde y amarillo cada 12 segundos.
+     */
     private void dibujarSemaforo(float x, float z) {
         caja(x, 1.7f, z, 0.18f, 2.8f, 0.18f, 0.18f, 0.20f, 0.22f); // Dibuja el poste sobre la acera.
         caja(x, 3.1f, z, 0.55f, 1.2f, 0.45f, 0.08f, 0.10f, 0.12f); // Dibuja la carcasa de las tres luces.
-        int fase = (int) (tiempoAnimacion % 12); // Repite un ciclo de segundos comprendidos entre 0 y 11.
+        int fase = faseSemaforo(); // Repite un ciclo de segundos comprendidos entre 0 y 11.
         for (int indice = 0; indice < 3; indice++) { // Recorre rojo arriba, amarillo al centro y verde abajo.
             boolean encendida = false; // Parte de una bombilla apagada.
             if (indice == 0) { // Selecciona la bombilla roja.
@@ -328,11 +254,14 @@ public class clase4 extends clase3 {
 
     // ==================== 6. MINIMAPA: SEGUNDO PASE DE DIBUJO ====================
 
-    /** Dibuja la escena principal y después la misma ciudad desde arriba, en un recuadro. */
+    /**
+     * Dibuja la escena principal y después la misma ciudad desde arriba, en un recuadro.
+     */
     @Override // Amplía el cuadro completo definido en clase1.
     protected void dibujarFrame() {
         super.dibujarFrame(); // Dibuja primero la vista normal de la ciudad.
-        if (!mostrarMapa) { // Comprueba si el usuario ocultó el minimapa con M.
+        if (!mostrarMapa) {
+            dibujarInterfaz(); // Comprueba si el usuario ocultó el minimapa con M.
             return; // Conserva únicamente la imagen principal.
         }
         int dimensionMenor = Math.min(ancho, alto); // Busca la dimensión que limita el espacio disponible.
@@ -359,12 +288,15 @@ public class clase4 extends clase3 {
             glDisable(GL_SCISSOR_TEST); // Permite que la próxima limpieza abarque toda la pantalla.
             glViewport(0, 0, ancho, alto); // Recupera el área de dibujo de la ventana completa.
         }
+        dibujarInterfaz();
         if (glGetError() != GL_NO_ERROR) { // Comprueba que el pase del mapa no haya generado errores OpenGL.
             throw new IllegalStateException("Error OpenGL en minimapa"); // Expone el error en la consola.
         }
     }
 
-    /** Dibuja una marca cian y una punta blanca por encima de los edificios del minimapa. */
+    /**
+     * Dibuja una marca cian y una punta blanca por encima de los edificios del minimapa.
+     */
     private void dibujarIndicadorAuto() {
         cajaGirada(autoX, 25, autoZ, 2.2f, 0.1f, 3.2f, 0.1f, 1, 1, angulo); // Marca la posición con un rectángulo cian orientado.
         float frenteX = -(float) Math.sin(angulo); // Calcula la dirección frontal en el eje X.
@@ -374,9 +306,208 @@ public class clase4 extends clase3 {
         caja(puntaX, 26, puntaZ, 0.9f, 0.1f, 0.9f, 1, 1, 1); // Dibuja la punta blanca encima del indicador cian.
     }
 
-    /** Punto de entrada del proyecto final. */
+    // Tráfico: cada vehículo guarda ruta, progreso y color propios.
+    protected static class AutoTrafico {
+        final float[][] ruta;
+        final float r, g, b;
+        int tramo;
+        float x, z, angulo;
+
+        AutoTrafico(float[][] ruta, float r, float g, float b) {
+            this.ruta = ruta;
+            this.r = r;
+            this.g = g;
+            this.b = b;
+            reiniciar();
+        }
+
+        void reiniciar() {
+            tramo = 1;
+            x = ruta[0][0];
+            z = ruta[0][1];
+            angulo = (float) Math.atan2(-(ruta[1][0] - x), -(ruta[1][1] - z));
+        }
+    }
+
+    // Convierte intersecciones en curvas redondeadas para evitar giros de 90 grados.
+    private static float[][] rutaSuave(float[][] esquinas) {
+        java.util.ArrayList<float[]> puntos = new java.util.ArrayList<>();
+        int n = esquinas.length;
+        for (int i = 0; i < n; i++) {
+            float[] anterior = esquinas[(i + n - 1) % n];
+            float[] actual = esquinas[i];
+            float[] siguiente = esquinas[(i + 1) % n];
+            float largoEntrada = (float) Math.hypot(actual[0] - anterior[0], actual[1] - anterior[1]);
+            float largoSalida = (float) Math.hypot(siguiente[0] - actual[0], siguiente[1] - actual[1]);
+            float radio = Math.min(4f, Math.min(largoEntrada, largoSalida) * .25f);
+            float ex = actual[0] + (anterior[0] - actual[0]) * radio / largoEntrada;
+            float ez = actual[1] + (anterior[1] - actual[1]) * radio / largoEntrada;
+            float sx = actual[0] + (siguiente[0] - actual[0]) * radio / largoSalida;
+            float sz = actual[1] + (siguiente[1] - actual[1]) * radio / largoSalida;
+            puntos.add(new float[]{ex, ez});
+            for (int j = 1; j <= 16; j++) {
+                float t = j / 16f, u = 1 - t;
+                puntos.add(new float[]{u * u * ex + 2 * u * t * actual[0] + t * t * sx,
+                        u * u * ez + 2 * u * t * actual[1] + t * t * sz});
+            }
+        }
+        return puntos.toArray(new float[0][]);
+    }
+
+    private AutoTrafico[] crearTrafico() {
+        // Cada circuito pasa por calles interiores y gira mediante curvas suaves.
+        return new AutoTrafico[]{
+                new AutoTrafico(rutaSuave(new float[][]{{-50, -50}, {-10, -50}, {-10, -10}, {30, -10}, {30, 30}, {-50, 30}}), .1f, .8f, .25f),
+                new AutoTrafico(rutaSuave(new float[][]{{10, -50}, {50, -50}, {50, 10}, {10, 10}, {10, 50}, {-30, 50}, {-30, -50}}), .9f, .65f, .1f),
+                new AutoTrafico(rutaSuave(new float[][]{{50, -30}, {30, -30}, {30, 10}, {-10, 10}, {-10, 50}, {50, 50}}), .25f, .3f, .95f),
+                new AutoTrafico(rutaSuave(new float[][]{{-50, 10}, {-30, 10}, {-30, -30}, {10, -30}, {10, 30}, {-50, 30}}), .8f, .2f, .8f),
+                new AutoTrafico(rutaSuave(new float[][]{{-50, -10}, {-10, -10}, {-10, 30}, {30, 30}, {30, -50}, {-50, -50}}), .1f, .8f, .9f)
+        };
+    }
+
+    protected int faseSemaforo() {
+        return (int) (tiempoAnimacion % 12);
+    }
+
+    protected boolean verdeTrafico() {
+        int fase = faseSemaforo();
+        return fase >= 5 && fase < 10;
+    }
+
+    // No se detiene dentro del cruce: espera en su aproximación.
+    protected boolean debeEsperarSemaforo(float x, float z, float dx, float dz) {
+        if (verdeTrafico()) return false;
+        float coordenada = Math.abs(dx) > .5f ? x : z;
+        float sentido = Math.abs(dx) > .5f ? dx : dz;
+        for (int i = 2; i < MAPA.length - 1; i += 2) {
+            float distancia = (centro(i) - coordenada) * sentido;
+            if (distancia > 2f && distancia <= 4.5f) return true;
+        }
+        return false;
+    }
+
+    protected void actualizarTrafico(float dt) {
+        for (AutoTrafico a : trafico) {
+            float tx = a.ruta[a.tramo][0], tz = a.ruta[a.tramo][1];
+            float dx = tx - a.x, dz = tz - a.z;
+            float distancia = (float) Math.hypot(dx, dz);
+            if (distancia < .001f) {
+                a.tramo = (a.tramo + 1) % a.ruta.length;
+                continue;
+            }
+            dx /= distancia;
+            dz /= distancia;
+            // Los NPC solo frenan cuando hay un obstaculo delante; no esperan semaforos.
+            float paso = Math.min(6f * dt, distancia);
+            float nx = a.x + dx * paso, nz = a.z + dz * paso;
+            boolean libre = super.puedeCircular(nx, nz);
+            // Solo frena por vehículos delante y dentro de su trayectoria.
+            if (vehiculoDelante(a, dx, dz, paso, autoX, autoZ)) libre = false;
+            for (AutoTrafico otro : trafico) {
+                if (otro != a && vehiculoDelante(a, dx, dz, paso, otro.x, otro.z)) libre = false;
+            }
+            if (libre) {
+                a.x = nx;
+                a.z = nz;
+                float objetivo = (float) Math.atan2(-dx, -dz);
+                float diferencia = (float) Math.atan2(Math.sin(objetivo - a.angulo), Math.cos(objetivo - a.angulo));
+                a.angulo += Math.max(-2.5f * dt, Math.min(2.5f * dt, diferencia));
+                if (paso >= distancia - .001f) a.tramo = (a.tramo + 1) % a.ruta.length;
+            }
+        }
+    }
+
+    private static boolean vehiculoDelante(AutoTrafico a, float dx, float dz,
+                                           float paso, float otroX, float otroZ) {
+        float relativoX = otroX - a.x, relativoZ = otroZ - a.z;
+        float distanciaFrontal = relativoX * dx + relativoZ * dz;
+        float distanciaLateral = Math.abs(relativoX * dz - relativoZ * dx);
+        // Conserva cuatro unidades de separación frontal; ignora los lados y la parte trasera.
+        return distanciaFrontal > 0f && distanciaFrontal < 4f + paso
+                && distanciaLateral < 2f;
+    }
+
+    @Override
+    protected boolean puedeCircular(float x, float z) {
+        if (!super.puedeCircular(x, z)) return false;
+        if (trafico != null) for (AutoTrafico a : trafico) {
+            if (Math.hypot(x - a.x, z - a.z) < RADIO_AUTO * 2) return false;
+        }
+        return true;
+    }
+
+    private void dibujarTrafico() {
+        float px = autoX, pz = autoZ, pa = angulo;
+        try {
+            for (AutoTrafico a : trafico) {
+                if (vistaMapa) {
+                    cajaGirada(a.x, 24, a.z, 2.4f, .1f, 2.4f, a.r, a.g, a.b, a.angulo);
+                } else {
+                    autoX = a.x;
+                    autoZ = a.z;
+                    angulo = a.angulo;
+                    pieza(0, .65f, 0, 1.65f, .55f, 2.6f, a.r, a.g, a.b);
+                    pieza(0, 1.12f, .12f, 1.3f, .55f, 1.25f, .22f, .65f, .78f);
+                    for (float x : new float[]{-.88f, .88f})
+                        for (float z : new float[]{-.82f, .82f})
+                            pieza(x, .38f, z, .24f, .58f, .6f, .055f, .065f, .08f);
+                }
+            }
+        } finally {
+            autoX = px;
+            autoZ = pz;
+            angulo = pa;
+        }
+    }
+
+    protected String sectorActual() {
+        if (autoX > 0 && autoZ > 0) return "SURESTE";
+        if (autoX > 0) return "ESTE";
+        if (autoZ > 0) return "SUR";
+        return "CENTRO / NOROESTE";
+    }
+
+    private void dibujarExtras() {
+        // La barrera coincide con el límite empleado por puedeCircular().
+        caja(0, .7f, -LIMITE, LIMITE * 2, 1.4f, .3f, .5f, .53f, .56f);
+        caja(0, .7f, LIMITE, LIMITE * 2, 1.4f, .3f, .5f, .53f, .56f);
+        caja(-LIMITE, .7f, 0, .3f, 1.4f, LIMITE * 2, .5f, .53f, .56f);
+        caja(LIMITE, .7f, 0, .3f, 1.4f, LIMITE * 2, .5f, .53f, .56f);
+    }
+
+    private void dibujarFuente(float x, float z) {
+        caja(x, .45f, z, 1.5f, .3f, 1.5f, .55f, .6f, .65f);
+        caja(x, .62f, z, 1.2f, .08f, 1.2f, .15f, .6f, .9f);
+        caja(x, .9f, z, .18f, .6f, .18f, .6f, .65f, .7f);
+        float altura = .6f + .15f * (float) Math.sin(tiempoAnimacion * 3);
+        caja(x, 1.2f + altura / 2, z, .10f, altura, .10f, .3f, .75f, 1);
+    }
+
+    // 0.6 s de entrada, 2.2 s visible y 1.2 s de salida.
+    protected float opacidadCartel() {
+        float t = tiempoCartel;
+        float valor = t < .6f ? t / .6f : t < 2.8f ? 1f : (4f - t) / 1.2f;
+        valor = Math.max(0f, Math.min(1f, valor));
+        return valor * valor * (3f - 2f * valor);
+    }
+
+    private void dibujarInterfaz() {
+        interfaz.dibujar(ancho, alto, mostrarAyuda,
+                Math.round(Math.abs(velocidad) * 3.6f), faros, noche,
+                entregas, DESTINOS.length, sectorActual(), modoCamara, opacidadCartel());
+    }
+
+    @Override
+    protected void limpiarExtras() {
+        interfaz.cerrar();
+    }
+
+    /**
+     * Punto de entrada del proyecto final.
+     */
     public static void main(String[] args) {
         clase4 aplicacion = new clase4(); // Crea la versión con todas las etapas acumuladas.
         aplicacion.run(); // Inicia el ciclo de vida completo de la aplicación.
     }
+
 }

@@ -27,7 +27,7 @@ public class ConduccionTest extends TestCase {
                 }
             }
         }
-        Juego juego = new Juego();
+        clase2 juego = new clase2();
         for (int f = 0; f < 11; f++) {
             assertEquals(11, clase1.MAPA[f].length);
             for (int c = 0; c < 11; c++) {
@@ -47,7 +47,7 @@ public class ConduccionTest extends TestCase {
     }
 
     public void testCallesNuevasYColisiones() {
-        Juego juego = new Juego();
+        clase2 juego = new clase2();
         for (float t = -50; t <= 50; t += 0.25f) {
             assertTrue(juego.puedeCircular(-50, t));
             assertTrue(juego.puedeCircular(t, -50));

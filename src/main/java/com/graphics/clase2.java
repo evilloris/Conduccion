@@ -1,204 +1,415 @@
-package com.graphics; // Agrupa las cuatro lecciones dentro del mismo paquete.
 
-import static org.lwjgl.glfw.GLFW.*; // Permite consultar teclas y cambiar el título de la ventana.
+package com.graphics;
 
-/**
- * CLASE 2: CREACIÓN Y MOVIMIENTO DEL AUTO.
- * Hereda la ciudad de clase1 y agrega únicamente lo necesario para conducir.
- * Orden de lectura: variables, teclado, movimiento, colisiones, cámara y dibujo.
- */
+import static org.lwjgl.glfw.GLFW.*;
+
 public class clase2 extends clase1 {
 
     // ==================== 1. VARIABLES DEL AUTO ====================
-    protected float autoX = centro(0); // Posición horizontal inicial: centro de una calle.
-    protected float autoZ = centro(MAPA.length - 1); // Posición inicial sobre el eje que recorre el fondo de la ciudad.
-    protected float angulo = 0; // Orientación en radianes; cero apunta hacia -Z.
-    protected float velocidad = 0; // Unidades por segundo; un valor negativo significa reversa.
-    protected boolean camaraAerea = false; // false: seguir el auto; true: observar toda la ciudad.
-    protected static final float RADIO_AUTO = 1.65f; // Radio que contiene al vehículo para las colisiones.
+    protected float autoX = centro(0);
+    protected float autoZ = centro(MAPA.length - 1) - 5.0f;
+    protected float angulo = 0;
+    protected float velocidad = 0;
+    protected int modoCamara = 0;
+    protected boolean camaraAerea = false;
 
-    // ==================== 2. TECLADO Y REINICIO ====================
+    protected static final float RADIO_AUTO = 1.65f;
+    protected static final float DISTANCIA_CARRETA = 4.0f;
+    protected static final float ADELANTO_INICIAL = 5.0f;
 
-    /** Atiende acciones que deben ocurrir una sola vez por pulsación. */
-    @Override // Sustituye el método de clase1 y conserva sus acciones mediante super.
+    // ==================== 2. VARIABLES DE LA CARRETA ====================
+    protected float carretaX = centro(0);
+    protected float carretaZ =
+            centro(MAPA.length - 1) - ADELANTO_INICIAL
+                    + DISTANCIA_CARRETA;
+
+    // ==================== 3. TECLADO Y REINICIO ====================
+    @Override
     protected void tecla(int key) {
-        super.tecla(key); // Ejecuta el control ESC definido en clase1.
+        super.tecla(key);
 
-        if (key == GLFW_KEY_C) { // Comprueba si se presionó la tecla de cámara.
-            camaraAerea = !camaraAerea; // Invierte el modo de cámara actual.
+        if (key == GLFW_KEY_C) {
+            modoCamara = (modoCamara + 1) % 3;
+            camaraAerea = modoCamara != 0;
         }
 
-        if (key == GLFW_KEY_R) { // Comprueba si el usuario quiere comenzar de nuevo.
-            reiniciar(); // Restaura las variables de conducción.
+        if (key == GLFW_KEY_R) {
+            reiniciar();
         }
     }
 
-    /** Coloca nuevamente el auto en su punto de partida. */
     protected void reiniciar() {
-        autoX = centro(0); // Recupera la coordenada X de inicio.
-        autoZ = centro(MAPA.length - 1); // Recupera la coordenada Z de inicio.
-        angulo = 0; // Orienta el frente hacia -Z.
-        velocidad = 0; // Detiene cualquier movimiento previo.
+        autoX = centro(0);
+        autoZ = centro(MAPA.length - 1) - ADELANTO_INICIAL;
+        angulo = 0;
+        velocidad = 0;
+
+        carretaX = autoX;
+        carretaZ = autoZ + DISTANCIA_CARRETA;
     }
 
-    // ==================== 3. MOVIMIENTO POR CUADRO ====================
-
-    /** Actualiza la conducción; deltaTime contiene los segundos transcurridos entre cuadros. */
-    @Override // Cambia la cámara orbital de clase1 por el control del vehículo.
+    // ==================== 4. MOVIMIENTO ====================
+    @Override
     protected void actualizar(float deltaTime) {
-        float acelerador = 0; // Sin teclas pulsadas no se aplica aceleración del motor.
 
-        if (pulsada(GLFW_KEY_W) || pulsada(GLFW_KEY_UP)) { // Acepta W o flecha arriba para avanzar.
-            acelerador += 1; // Solicita aceleración hacia delante.
+        if (modoCamara == 2) {
+            if (pulsada(GLFW_KEY_Q)) orbita -= deltaTime;
+            if (pulsada(GLFW_KEY_E)) orbita += deltaTime;
         }
 
-        if (pulsada(GLFW_KEY_S) || pulsada(GLFW_KEY_DOWN)) { // Acepta S o flecha abajo para retroceder.
-            acelerador -= 1; // Primero reduce la velocidad positiva y después entra en reversa.
+        float acelerador = 0;
+
+        if (pulsada(GLFW_KEY_W) || pulsada(GLFW_KEY_UP)) {
+            acelerador += 1;
         }
 
-        velocidad += acelerador * 9 * deltaTime; // Integra la aceleración de 9 unidades por segundo cuadrado.
-        float resistencia = 0.7f; // Define la pérdida de velocidad normal al rodar.
-
-        if (pulsada(GLFW_KEY_SPACE)) { // Detecta si el usuario mantiene presionado el freno.
-            resistencia = 7; // Aumenta la pérdida de velocidad para detenerse rápidamente.
+        if (pulsada(GLFW_KEY_S) || pulsada(GLFW_KEY_DOWN)) {
+            acelerador -= 1;
         }
 
-        float factorFrenado = (float) Math.exp(-resistencia * deltaTime); // Calcula la fracción de velocidad conservada.
-        velocidad *= factorFrenado; // Aplica resistencia de forma proporcional al tiempo transcurrido.
-        velocidad = Math.max(-6, Math.min(16, velocidad)); // Limita la reversa a -6 y el avance a 16.
-        float direccion = 0; // Sin dirección presionada el volante permanece recto.
+        velocidad += acelerador * 14 * deltaTime;
 
-        if (pulsada(GLFW_KEY_A) || pulsada(GLFW_KEY_LEFT)) { // Comprueba el giro hacia la izquierda.
-            direccion += 1; // Selecciona el sentido positivo de rotación.
+        float resistencia = pulsada(GLFW_KEY_SPACE) ? 7 : 0.7f;
+
+        velocidad *= (float) Math.exp(-resistencia * deltaTime);
+        velocidad = Math.max(-6, Math.min(17, velocidad));
+
+        float direccion = 0;
+
+        if (pulsada(GLFW_KEY_A) || pulsada(GLFW_KEY_LEFT)) {
+            direccion += 1;
         }
 
-        if (pulsada(GLFW_KEY_D) || pulsada(GLFW_KEY_RIGHT)) { // Comprueba el giro hacia la derecha.
-            direccion -= 1; // Selecciona el sentido negativo de rotación.
+        if (pulsada(GLFW_KEY_D) || pulsada(GLFW_KEY_RIGHT)) {
+            direccion -= 1;
         }
 
-        angulo += direccion * velocidad * 0.11f * deltaTime; // Gira según la velocidad; en reversa invierte el giro.
-        float frenteX = -(float) Math.sin(angulo); // Obtiene la componente X del frente del vehículo.
-        float frenteZ = -(float) Math.cos(angulo); // Obtiene la componente Z; con ángulo cero vale -1.
-        float siguienteX = autoX + frenteX * velocidad * deltaTime; // Propone la nueva posición X.
-        float siguienteZ = autoZ + frenteZ * velocidad * deltaTime; // Propone la nueva posición Z.
+        float nuevoAngulo =
+                angulo + direccion * velocidad * 0.11f * deltaTime;
 
-        if (puedeCircular(siguienteX, siguienteZ)) { // Comprueba la posición antes de mover el auto.
-            autoX = siguienteX; // Acepta el desplazamiento horizontal.
-            autoZ = siguienteZ; // Acepta el desplazamiento en profundidad.
-        } else { // La posición propuesta invadiría una manzana o saldría del mapa.
-            velocidad = 0; // Detiene el auto conservando su última posición válida.
+        float frenteX = -(float) Math.sin(nuevoAngulo);
+        float frenteZ = -(float) Math.cos(nuevoAngulo);
+
+        float siguienteX = autoX + frenteX * velocidad * deltaTime;
+        float siguienteZ = autoZ + frenteZ * velocidad * deltaTime;
+
+        float siguienteCarretaX =
+                siguienteX
+                        + (float) Math.sin(nuevoAngulo)
+                        * DISTANCIA_CARRETA;
+
+        float siguienteCarretaZ =
+                siguienteZ
+                        + (float) Math.cos(nuevoAngulo)
+                        * DISTANCIA_CARRETA;
+
+        boolean autoLibre =
+                puedeCircular(siguienteX, siguienteZ);
+
+        boolean carretaLibre =
+                puedeCircularCarreta(
+                        siguienteCarretaX,
+                        siguienteCarretaZ,
+                        nuevoAngulo);
+
+        if (autoLibre && carretaLibre) {
+            autoX = siguienteX;
+            autoZ = siguienteZ;
+            angulo = nuevoAngulo;
+
+            carretaX = siguienteCarretaX;
+            carretaZ = siguienteCarretaZ;
+        } else {
+            velocidad = 0;
         }
 
-        actualizarTitulo(); // Muestra los controles y la velocidad actual.
+        actualizarTitulo();
     }
 
-    /** Compone el texto de la ventana sin mezclarlo con las fórmulas de conducción. */
+    // ==================== 5. COLISIONES DE LA CARRETA ====================
+    protected boolean puedeCircularCarreta(
+            float x, float z, float anguloCarreta) {
+
+        float coseno = (float) Math.cos(anguloCarreta);
+        float seno = (float) Math.sin(anguloCarreta);
+
+        float[] puntosX = {-1.45f, 1.45f, -1.45f, 1.45f, 0, 0};
+        float[] puntosZ = {-2.25f, -2.25f, 2.25f, 2.25f, -2.25f, 2.25f};
+
+        for (int i = 0; i < puntosX.length; i++) {
+            float puntoX =
+                    x + coseno * puntosX[i] + seno * puntosZ[i];
+
+            float puntoZ =
+                    z - seno * puntosX[i] + coseno * puntosZ[i];
+
+            if (!puntoCarretaLibre(puntoX, puntoZ)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    protected boolean puntoCarretaLibre(float x, float z) {
+        float radio = 0.45f;
+        float limitePermitido = LIMITE - radio;
+
+        if (Math.abs(x) > limitePermitido
+                || Math.abs(z) > limitePermitido) {
+            return false;
+        }
+
+        for (int fila = 0; fila < MAPA.length; fila++) {
+            for (int columna = 0;
+                 columna < MAPA[fila].length;
+                 columna++) {
+
+                if (MAPA[fila][columna] == 0) {
+                    continue;
+                }
+
+                float centroX = centro(columna);
+                float centroZ = centro(fila);
+
+                float cercaX = Math.max(
+                        centroX - 5,
+                        Math.min(x, centroX + 5));
+
+                float cercaZ = Math.max(
+                        centroZ - 5,
+                        Math.min(z, centroZ + 5));
+
+                float dx = x - cercaX;
+                float dz = z - cercaZ;
+
+                if (dx * dx + dz * dz < radio * radio) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    // ==================== 6. TITULO DE LA VENTANA ====================
     private void actualizarTitulo() {
-        int kilometrosPorHora = Math.round(Math.abs(velocidad) * 3.6f); // Convierte m/s a km/h y redondea.
-        String titulo = getClass().getSimpleName(); // Obtiene el nombre de la etapa que se está ejecutando.
-        titulo += " | WASD/flechas: conducir | Espacio: freno"; // Añade los controles del vehículo.
-        titulo += " | C: camara | R: reiniciar | "; // Añade los controles de cámara y reinicio.
-        titulo += kilometrosPorHora + " km/h"; // Añade la magnitud de la velocidad.
-        titulo += estadoExtra(); // Permite a clase3 y clase4 añadir luces y entregas.
-        if (ventana != 0) glfwSetWindowTitle(ventana, titulo); // Publica el texto en la barra superior de la ventana.
+        int kilometrosPorHora =
+                Math.round(Math.abs(velocidad) * 3.6f);
+
+        String titulo = getClass().getSimpleName();
+        titulo += " | WASD/flechas: conducir";
+        titulo += " | Espacio: freno";
+        titulo += " | C: camara | R: reiniciar";
+        titulo += " | " + kilometrosPorHora + " km/h";
+        titulo += estadoExtra();
+
+        if (ventana != 0) {
+            glfwSetWindowTitle(ventana, titulo);
+        }
     }
 
-    /** Deja un espacio para los indicadores de las próximas lecciones. */
     protected String estadoExtra() {
-        return ""; // En clase2 todavía no hay información adicional.
+        return "";
     }
 
-    // ==================== 4. COLISIONES CON LA CIUDAD ====================
-
-    /** Comprueba si el círculo del auto cabe en una posición sin tocar manzanas ni bordes. */
+    // ==================== 7. COLISIONES DEL AUTO ====================
     protected boolean puedeCircular(float x, float z) {
-        float limitePermitido = LIMITE - RADIO_AUTO; // Reserva espacio para que el auto completo quede dentro.
+        float limitePermitido = LIMITE - RADIO_AUTO;
 
-        if (Math.abs(x) > limitePermitido || Math.abs(z) > limitePermitido) { // Detecta salida por cualquier borde.
-            return false; // Rechaza la posición exterior.
+        if (Math.abs(x) > limitePermitido
+                || Math.abs(z) > limitePermitido) {
+            return false;
         }
 
-        for (int fila = 0; fila < MAPA.length; fila++) { // Recorre las filas del mapa.
-            for (int columna = 0; columna < MAPA[fila].length; columna++) { // Recorre las celdas de cada fila.
-                if (MAPA[fila][columna] == 0) { // Una celda con cero representa calle.
-                    continue; // Omite la calle porque no es un obstáculo.
+        for (int fila = 0; fila < MAPA.length; fila++) {
+            for (int columna = 0;
+                 columna < MAPA[fila].length;
+                 columna++) {
+
+                if (MAPA[fila][columna] == 0) {
+                    continue;
                 }
 
-                float centroX = centro(columna); // Convierte la columna al centro X de la manzana.
-                float centroZ = centro(fila); // Convierte la fila al centro Z de la manzana.
-                float cercaX = Math.max(centroX - 5, Math.min(x, centroX + 5)); // Busca el X más cercano dentro de la acera.
-                float cercaZ = Math.max(centroZ - 5, Math.min(z, centroZ + 5)); // Busca el Z más cercano dentro de la acera.
-                float distanciaX = x - cercaX; // Calcula la separación horizontal del auto al rectángulo.
-                float distanciaZ = z - cercaZ; // Calcula la separación en profundidad al rectángulo.
-                float distanciaCuadrada = distanciaX * distanciaX + distanciaZ * distanciaZ; // Aplica Pitágoras sin raíz.
+                float centroX = centro(columna);
+                float centroZ = centro(fila);
 
-                if (distanciaCuadrada < RADIO_AUTO * RADIO_AUTO) { // Comprueba si el círculo invade la manzana.
-                    return false; // Rechaza el movimiento que produciría una colisión.
+                float cercaX = Math.max(
+                        centroX - 5,
+                        Math.min(x, centroX + 5));
+
+                float cercaZ = Math.max(
+                        centroZ - 5,
+                        Math.min(z, centroZ + 5));
+
+                float dx = x - cercaX;
+                float dz = z - cercaZ;
+
+                if (dx * dx + dz * dz
+                        < RADIO_AUTO * RADIO_AUTO) {
+                    return false;
                 }
             }
         }
 
-        return true; // Acepta la posición porque no se encontró ningún obstáculo.
+        return true;
     }
 
-    // ==================== 5. CÁMARA ====================
-
-    /** Elige entre una vista general y una cámara situada detrás del auto. */
-    @Override // Personaliza la cámara creada en clase1.
+    // ==================== 8. CÁMARA ====================
+    @Override
     protected void configurarCamara() {
-        if (camaraAerea) { // Comprueba si está activa la vista general.
-            super.configurarCamara(); // Reutiliza la cámara oblicua de la primera lección.
-            return; // Evita reemplazarla con la cámara de seguimiento.
+        if (camaraAerea) {
+            if (modoCamara == 1) {
+                vector("uOjo", autoX, 35, autoZ + 0.01f);
+                vector("uObjetivo", autoX, 0, autoZ);
+                decimal("uAspecto", (float) ancho / alto);
+            } else {
+                super.configurarCamara();
+            }
+            return;
         }
 
-        float camaraX = autoX + (float) Math.sin(angulo) * 12; // Coloca la cámara 12 unidades detrás en X.
-        float camaraZ = autoZ + (float) Math.cos(angulo) * 12; // Coloca la cámara 12 unidades detrás en Z.
-        vector("uOjo", camaraX, 9, camaraZ); // Envía la posición de la cámara, a 9 unidades de altura.
-        vector("uObjetivo", autoX, 0.8f, autoZ); // Orienta la cámara hacia la carrocería.
-        decimal("uAspecto", (float) ancho / alto); // Mantiene las proporciones al redimensionar la ventana.
+        float camaraX =
+                autoX + (float) Math.sin(angulo) * 12;
+
+        float camaraZ =
+                autoZ + (float) Math.cos(angulo) * 12;
+
+        vector("uOjo", camaraX, 9, camaraZ);
+        vector("uObjetivo", autoX, 0.8f, autoZ);
+        decimal("uAspecto", (float) ancho / alto);
     }
 
-    // ==================== 6. DIBUJO DEL AUTO ====================
-
-    /** Dibuja primero la ciudad existente y luego el vehículo. */
-    @Override // Amplía el dibujo de clase1 sin copiar su código.
+    // ==================== 9. DIBUJO DE LA ESCENA ====================
+    @Override
     protected void escena() {
-        super.escena(); // Dibuja asfalto, calles, edificios y parques.
-        dibujarAuto(); // Añade el modelo del vehículo sobre la ciudad.
+        super.escena();
+
+        dibujarAuto();
+        dibujarCarreta();
     }
 
-    /** Construye el auto con cajas; argumentos: posición XYZ, tamaño XYZ y color RGB. */
+    // ==================== 10. DIBUJO DEL AUTO ====================
     protected void dibujarAuto() {
-        pieza(0, 0.65f, 0, 1.65f, 0.55f, 2.6f, 0.95f, 0.24f, 0.12f); // Dibuja la carrocería roja.
-        pieza(0, 1.12f, 0.12f, 1.3f, 0.55f, 1.25f, 0.22f, 0.65f, 0.78f); // Dibuja la cabina azulada.
-        float[] ladosRuedas = {-0.88f, 0.88f}; // Ubica ruedas a izquierda y derecha del auto.
-        float[] ejesRuedas = {-0.82f, 0.82f}; // Ubica las ruedas delanteras y traseras.
+        pieza(0, 0.65f, 0,
+                1.65f, 0.55f, 2.6f,
+                0.95f, 0.24f, 0.12f);
 
-        for (float x : ladosRuedas) { // Selecciona uno de los dos lados del vehículo.
-            for (float z : ejesRuedas) { // Selecciona el eje delantero o trasero.
-                pieza(x, 0.38f, z, 0.24f, 0.58f, 0.6f, 0.055f, 0.065f, 0.08f); // Dibuja una rueda oscura.
+        pieza(0, 1.12f, 0.12f,
+                1.3f, 0.55f, 1.25f,
+                0.22f, 0.65f, 0.78f);
+
+        float[] ladosRuedas = {-0.88f, 0.88f};
+        float[] ejesRuedas = {-0.82f, 0.82f};
+
+        for (float x : ladosRuedas) {
+            for (float z : ejesRuedas) {
+                pieza(x, 0.38f, z,
+                        0.24f, 0.58f, 0.6f,
+                        0.055f, 0.065f, 0.08f);
             }
         }
 
-        float[] ladosFaros = {-0.55f, 0.55f}; // Define la separación lateral de las luces.
-        for (float x : ladosFaros) { // Repite el dibujo para ambos lados.
-            pieza(x, 0.68f, -1.32f, 0.38f, 0.2f, 0.07f, 1, 0.95f, 0.65f); // Dibuja un faro delantero claro.
-            pieza(x, 0.68f, 1.32f, 0.35f, 0.17f, 0.07f, 0.85f, 0.05f, 0.05f); // Dibuja una luz trasera roja.
+        float[] ladosFaros = {-0.55f, 0.55f};
+
+        for (float x : ladosFaros) {
+            pieza(x, 0.68f, -1.32f,
+                    0.38f, 0.2f, 0.07f,
+                    1, 0.95f, 0.65f);
+
+            pieza(x, 0.68f, 1.32f,
+                    0.35f, 0.17f, 0.07f,
+                    0.85f, 0.05f, 0.05f);
         }
     }
 
-    /** Transforma una pieza del espacio local del auto al espacio de la ciudad. */
-    protected void pieza(float x, float y, float z, float sx, float sy, float sz, float r, float g, float b) {
-        float coseno = (float) Math.cos(angulo); // Calcula el coseno de la orientación del auto.
-        float seno = (float) Math.sin(angulo); // Calcula el seno de la misma orientación.
-        float mundoX = autoX + coseno * x + seno * z; // Gira la posición local y suma la posición X del auto.
-        float mundoZ = autoZ - seno * x + coseno * z; // Gira la posición local y suma la posición Z del auto.
-        cajaGirada(mundoX, y, mundoZ, sx, sy, sz, r, g, b, angulo); // Dibuja la pieza con la orientación del vehículo.
+    // ==================== 11. DIBUJO DE LA CARRETA ====================
+    protected void dibujarCarreta() {
+        pieza(0, 0.48f, 2.65f,
+                0.16f, 0.16f, 2.0f,
+                0.18f, 0.18f, 0.18f);
+
+        piezaCarreta(0, 0.62f, 0,
+                1.65f, 0.28f, 2.45f,
+                0.22f, 0.22f, 0.24f);
+
+        piezaCarreta(0, 1.02f, 0,
+                1.48f, 0.62f, 2.15f,
+                0.72f, 0.28f, 0.12f);
+
+        piezaCarreta(0, 1.38f, -0.98f,
+                1.48f, 0.12f, 0.10f,
+                0.86f, 0.42f, 0.18f);
+
+        piezaCarreta(0, 1.38f, 0.98f,
+                1.48f, 0.12f, 0.10f,
+                0.86f, 0.42f, 0.18f);
+
+        piezaCarreta(-0.69f, 1.38f, 0,
+                0.10f, 0.12f, 1.95f,
+                0.86f, 0.42f, 0.18f);
+
+        piezaCarreta(0.69f, 1.38f, 0,
+                0.10f, 0.12f, 1.95f,
+                0.86f, 0.42f, 0.18f);
+
+        float[] lados = {-0.88f, 0.88f};
+        float[] ejes = {-0.72f, 0.72f};
+
+        for (float x : lados) {
+            for (float z : ejes) {
+                piezaCarreta(x, 0.35f, z,
+                        0.22f, 0.52f, 0.48f,
+                        0.06f, 0.06f, 0.07f);
+            }
+        }
     }
 
-    /** Punto de entrada para ejecutar únicamente la segunda etapa. */
+    // ==================== 12. PIEZAS DE LA CARRETA ====================
+    protected void piezaCarreta(
+            float x, float y, float z,
+            float sx, float sy, float sz,
+            float r, float g, float b) {
+
+        float coseno = (float) Math.cos(angulo);
+        float seno = (float) Math.sin(angulo);
+
+        float mundoX =
+                carretaX + coseno * x + seno * z;
+
+        float mundoZ =
+                carretaZ - seno * x + coseno * z;
+
+        cajaGirada(
+                mundoX, y, mundoZ,
+                sx, sy, sz,
+                r, g, b, angulo);
+    }
+
+    // ==================== 13. PIEZAS DEL AUTO ====================
+    protected void pieza(
+            float x, float y, float z,
+            float sx, float sy, float sz,
+            float r, float g, float b) {
+
+        float coseno = (float) Math.cos(angulo);
+        float seno = (float) Math.sin(angulo);
+
+        float mundoX =
+                autoX + coseno * x + seno * z;
+
+        float mundoZ =
+                autoZ - seno * x + coseno * z;
+
+        cajaGirada(
+                mundoX, y, mundoZ,
+                sx, sy, sz,
+                r, g, b, angulo);
+    }
+
+    // ==================== 14. INICIO DEL PROGRAMA ====================
     public static void main(String[] args) {
-        clase2 aplicacion = new clase2(); // Crea la aplicación con ciudad y vehículo.
-        aplicacion.run(); // Inicia la ventana y el ciclo de dibujo heredados.
+        clase2 aplicacion = new clase2();
+        aplicacion.run();
     }
 }

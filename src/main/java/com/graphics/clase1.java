@@ -115,7 +115,10 @@ public class clase1 {
     }
 
     /** Libera únicamente los recursos que llegaron a crearse. */
+    protected void limpiarExtras() {}
+
     private void limpiar() {
+        if (programa != 0) limpiarExtras();
         if (programa != 0) { // Comprueba si existe un programa en la GPU.
             glDeleteProgram(programa); // Libera el programa de shaders.
         }
@@ -158,9 +161,9 @@ public class clase1 {
 
     /** Coloca la cámara elevada y orientada hacia el centro de la ciudad. */
     protected void configurarCamara() {
-        float camaraX = (float) Math.sin(orbita) * LIMITE * 2.1f; // Calcula la posición X de una órbita proporcional al mapa.
-        float camaraZ = (float) Math.cos(orbita) * LIMITE * 2.1f; // Calcula la posición Z de esa misma órbita.
-        vector("uOjo", camaraX, LIMITE * 1.8f, camaraZ); // Envía la posición de la cámara a una altura proporcional al mapa.
+        float camaraX = (float) Math.sin(orbita) * LIMITE * 2.6f; // Calcula la posición X de una órbita proporcional al mapa.
+        float camaraZ = (float) Math.cos(orbita) * LIMITE * 2.6f; // Calcula la posición Z de esa misma órbita.
+        vector("uOjo", camaraX, LIMITE * 2.2f, camaraZ); // Envía la posición de la cámara a una altura proporcional al mapa.
         vector("uObjetivo", 0, 0, 0); // Apunta la cámara hacia el origen del mundo.
         decimal("uAspecto", (float) ancho / alto); // Envía la proporción de la imagen para evitar deformaciones.
     }
@@ -178,9 +181,11 @@ public class clase1 {
     }
 
     /** Prepara OpenGL y dibuja una imagen completa. */
+    protected void configurarFondo() { glClearColor(0.50f, 0.75f, 0.95f, 1); }
+
     protected void dibujarFrame() {
         glViewport(0, 0, ancho, alto); // Utiliza toda el área de la ventana para la escena principal.
-        glClearColor(0.12f, 0.20f, 0.30f, 1); // Define un fondo azul oscuro completamente opaco.
+        configurarFondo(); // Define un fondo azul oscuro completamente opaco.
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Borra la imagen y las distancias del cuadro anterior.
         glUseProgram(programa); // Activa los shaders de esta etapa.
         glBindVertexArray(vao); // Selecciona los atributos del cubo compartido.

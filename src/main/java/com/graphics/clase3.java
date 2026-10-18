@@ -10,7 +10,7 @@ import static org.lwjgl.glfw.GLFW.*; // Incluye las constantes de las teclas N y
 public class clase3 extends clase2 {
 
     // ==================== 1. ESTADO Y POSICIONES DE LAS LUCES ====================
-    protected boolean noche = true; // Inicia la escena con iluminación nocturna.
+    protected boolean noche = false; // Inicia la escena con iluminación nocturna.
     protected boolean faros = true; // Inicia los focos del auto encendidos.
     // Una farola sobre la acera de cada manzana: también ilumina los sectores nuevos.
     protected static final float[][] LUCES = crearFarolas();
@@ -23,6 +23,12 @@ public class clase3 extends clase2 {
             }
         }
         return luces;
+    }
+
+    @Override
+    protected void configurarFondo() {
+        if (noche) org.lwjgl.opengl.GL33.glClearColor(0.02f, 0.03f, 0.08f, 1);
+        else org.lwjgl.opengl.GL33.glClearColor(0.50f, 0.75f, 0.95f, 1);
     }
 
     // ==================== 2. CONTROLES E INDICADORES ====================
